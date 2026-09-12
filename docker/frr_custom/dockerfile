@@ -1,0 +1,220 @@
+# syntax=docker/dockerfile:1
+
+FROM quay.io/frrouting/frr:containerlab-10.7.1
+
+ARG FRR_VERSION=frr-10.7.1
+ARG LIBYANG_VERSION=v2.1.148
+ARG SYSREPO_VERSION=v2.2.150
+ARG LIBNETCONF2_VERSION=v3.0.8
+ARG NETOPEER2_VERSION=v2.2.13
+
+#
+# Build / runtime dependencies
+#
+# FRR:
+#   SNMP / Sysrepo / RPKI / scripting / clippy build dependencies
+#
+# NETCONF:
+#   libyang / sysrepo / libnetconf2 / netopeer2 dependencies
+#
+RUN apk add --no-cache \
+    bash \
+    ca-certificates \
+    curl \
+    git \
+    build-base \
+    autoconf \
+    automake \
+    libtool \
+    pkgconf \
+    cmake \
+    bison \
+    flex \
+    gawk \
+    perl \
+    texinfo \
+    linux-headers \
+    bsd-compat-headers \
+    c-ares \
+    c-ares-dev \
+    json-c \
+    json-c-dev \
+    readline \
+    readline-dev \
+    ncurses-dev \
+    pcre2 \
+    pcre2-dev \
+    libcap-dev \
+    libedit \
+    libuuid \
+    elfutils \
+    elfutils-dev \
+    openssl \
+    openssl-dev \
+    libssh2 \
+    libssh2-dev \
+    libssh-dev \
+    curl-dev \
+    net-snmp \
+    net-snmp-tools \
+    net-snmp-dev \
+    protobuf-c \
+    protobuf-c-dev \
+    protobuf-c-compiler \
+    python3 \
+    python3-dev \
+    py3-pip \
+    lua5.3 \
+    lua5.3-dev \
+    rtrlib \
+    rtrlib-dev
+
+WORKDIR /src
+
+#
+# libyang 2.1.148
+#
+RUN git clone --depth 1 \
+      --branch ${LIBYANG_VERSION} \
+      https://github.com/CESNET/libyang.git libyang && \
+    cmake \
+      -S libyang \
+      -B libyang/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DENABLE_BUILD_TESTS=OFF && \
+    cmake --build libyang/build -j$(nproc) && \
+    cmake --install libyang/build
+
+#
+# Sysrepo 2.2.150
+#
+RUN git clone --depth 1 \
+      --branch ${SYSREPO_VERSION} \
+      https://github.com/sysrepo/sysrepo.git sysrepo && \
+    cmake \
+      -S sysrepo \
+      -B sysrepo/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DENABLE_TESTS=OFF \
+      -DENABLE_EXAMPLES=OFF && \
+    cmake --build sysrepo/build -j$(nproc) && \
+    cmake --install sysrepo/build
+
+#
+# libnetconf2 3.0.8
+#
+RUN git clone --depth 1 \
+      --branch ${LIBNETCONF2_VERSION} \
+      https://github.com/CESNET/libnetconf2.git libnetconf2 && \
+    cmake \
+      -S libnetconf2 \
+      -B libnetconf2/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DENABLE_TESTS=OFF && \
+    cmake --build libnetconf2/build -j$(nproc) && \
+    cmake --install libnetconf2/build
+
+#
+# Netopeer2 install scripts require these commands.
+#
+RUN command -v openssl && \
+    openssl version && \
+    command -v sysrepoctl && \
+    command -v sysrepocfg
+
+#
+# Netopeer2 2.2.13
+#
+# Installation also:
+#   - installs required YANG modules into Sysrepo
+#   - generates NETCONF host key
+#   - installs initial NETCONF server configuration
+#
+RUN git clone --depth 1 \
+      --branch ${NETOPEER2_VERSION} \
+      https://github.com/CESNET/netopeer2.git netopeer2 && \
+    cmake \
+      -S netopeer2 \
+      -B netopeer2/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DENABLE_TESTS=OFF \
+      -DSYSREPO_SETUP=ON && \
+    cmake --build netopeer2/build -j$(nproc) && \
+    OPENSSL_EXECUTABLE=/usr/bin/openssl \
+      cmake --install netopeer2/build
+
+#
+# FRR 10.7.1
+#
+# The FRR binaries inherited from containerlab-10.7.1 are replaced
+# by an FRR build with SNMP + Sysrepo enabled.
+#
+RUN git clone --depth 1 \
+      --branch ${FRR_VERSION} \
+      https://github.com/FRRouting/frr.git frr && \
+    cd frr && \
+    ./bootstrap.sh && \
+    ./configure \
+      --prefix=/usr \
+      --sysconfdir=/etc \
+      --localstatedir=/var \
+      --sbindir=/usr/lib/frr \
+      --libdir=/usr/lib \
+      --with-moduledir=/usr/lib/frr/modules \
+      --enable-rpki \
+      --enable-vtysh \
+      --enable-multipath=64 \
+      --enable-vty-group=frrvty \
+      --enable-user=frr \
+      --enable-group=frr \
+      --enable-pcre2posix \
+      --enable-scripting \
+      --enable-snmp \
+      --enable-sysrepo && \
+    make -j$(nproc) && \
+    make install
+
+#
+# Verify FRR modules and management components.
+#
+RUN /usr/lib/frr/bgpd --version && \
+    test -f /usr/lib/frr/modules/bgpd_snmp.so && \
+    test -f /usr/lib/frr/modules/zebra_snmp.so && \
+    test -f /usr/lib/frr/modules/sysrepo.so && \
+    command -v snmpd && \
+    command -v sysrepoctl && \
+    command -v sysrepocfg && \
+    command -v netopeer2-server && \
+    command -v sshd
+
+#
+# snmpd.conf is intentionally NOT embedded.
+#
+# Containerlab will bind:
+#
+#   ./configs/r2-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
+#
+# because community strings, Trap destinations, etc. are lab-specific.
+#
+
+EXPOSE 22/tcp
+EXPOSE 179/tcp
+EXPOSE 161/udp
+EXPOSE 830/tcp
+
+#
+# ENTRYPOINT and CMD are inherited from:
+#
+#   quay.io/frrouting/frr:containerlab-10.7.1
+#
+# Therefore the containerlab FRR startup behavior, including sshd,
+# remains intact.
+#

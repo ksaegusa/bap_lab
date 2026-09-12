@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG GOBGP_VERSION=v4.7.0
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /src
+
+RUN git clone --depth 1 \
+      --branch ${GOBGP_VERSION} \
+      https://github.com/osrg/gobgp.git .
+
+RUN CGO_ENABLED=0 \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" \
+      -o /out/gobgpd ./cmd/gobgpd
+
+RUN CGO_ENABLED=0 \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" \
+      -o /out/gobgp ./cmd/gobgp
+
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      frr \
+      ca-certificates \
+      iproute2 \
+      iputils-ping \
+      tcpdump \
+      procps \
+      bash \
+      curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /out/gobgpd /usr/local/bin/gobgpd
+COPY --from=builder /out/gobgp  /usr/local/bin/gobgp
+
+RUN mkdir -p /etc/gobgp /run/frr && \
+    touch /etc/frr/zebra.conf && \
+    chown -R frr:frr /run/frr /etc/frr/zebra.conf
+
+COPY start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
+EXPOSE 179 50051
+
+ENTRYPOINT ["/usr/local/bin/start.sh"]

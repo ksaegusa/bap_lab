@@ -1,0 +1,52 @@
+name: bgp-chaos
+
+mgmt:
+  network: bgp-chaos-mgmt
+  ipv4-subnet: 172.20.20.0/24
+
+topology:
+  nodes:
+    r1-gobgp:
+      kind: linux
+      image: gobgp-lab:v4.7.0
+      mgmt-ipv4: 172.20.20.11
+      binds:
+        - ./configs/r1-gobgp/gobgpd.yaml:/etc/gobgp/gobgpd.yaml:ro
+      exec:
+        - ip addr add 10.0.1.0/31 dev eth1
+        - ip addr add 10.100.1.1/32 dev lo
+        - sh -c 'until gobgp global rib add 10.100.1.1/32; do sleep 1; done'
+
+    r2-frr:
+      kind: linux
+      image: frr-lab:10.7.0-snmp-netconf
+      mgmt-ipv4: 172.20.20.12
+      binds:
+        - ./configs/r2-frr/daemons:/etc/frr/daemons:ro
+        - ./configs/r2-frr/frr.conf:/etc/frr/frr.conf:ro
+        - ./configs/r2-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
+      exec:
+        - snmpd
+    r3-gobgp:
+      kind: linux
+      image: gobgp-lab:v4.7.0
+      mgmt-ipv4: 172.20.20.21
+      binds:
+        - ./configs/r3-gobgp/gobgpd.yaml:/etc/gobgp/gobgpd.yaml:ro
+      exec:
+        - ip addr add 10.0.3.1/31 dev eth1
+        - ip addr add 10.100.3.1/32 dev lo
+        - sh -c 'until gobgp global rib add 10.100.3.1/32; do sleep 1; done'
+
+    r4-frr:
+      kind: linux
+      image: frr-lab:10.7.0-snmp-netconf
+      mgmt-ipv4: 172.20.20.22
+      binds:
+        - ./configs/r4-frr/daemons:/etc/frr/daemons:ro
+        - ./configs/r4-frr/frr.conf:/etc/frr/frr.conf:ro
+
+  links:
+    - endpoints: ["r1-gobgp:eth1", "r2-frr:eth1"]
+    - endpoints: ["r2-frr:eth2", "r4-frr:eth1"]
+    - endpoints: ["r4-frr:eth2", "r3-gobgp:eth1"]
