@@ -45,7 +45,9 @@ topology:
       binds:
         - ./configs/r4-frr/daemons:/etc/frr/daemons:ro
         - ./configs/r4-frr/frr.conf:/etc/frr/frr.conf:ro
-
+        - ./configs/r4-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
+      exec:
+        - snmpd
   links:
     - endpoints: ["r1-gobgp:eth1", "r2-frr:eth1"]
     - endpoints: ["r2-frr:eth2", "r4-frr:eth1"]
