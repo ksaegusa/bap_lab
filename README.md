@@ -277,24 +277,16 @@ docker build \
 
 # 3. Deploy Containerlab
 
-リポジトリルートへ移動します。
-
-```bash
-cd ~/labs/bgp_lab
-```
-
 Topologyを起動:
 
 ```bash
-sudo containerlab deploy \
-  -t bgp-chaos.clab.yml
+containerlab deploy
 ```
 
 状態確認:
 
 ```bash
-containerlab inspect \
-  -t bgp-chaos.clab.yml
+containerlab inspect 
 ```
 
 Docker側:
@@ -447,6 +439,8 @@ Zabbix 7.0 LTSをDocker Composeで起動します。
 ```bash
 cd zabbix
 ```
+
+.envを修正
 
 起動:
 
@@ -963,42 +957,6 @@ docker exec clab-bgp-chaos-r2-frr \
 
 ---
 
-# Zabbix Backup
-
-ZabbixのGUI設定はPostgreSQL Databaseに保存されます。
-
-バックアップ対象:
-
-```text
-PostgreSQL DB
-compose.yaml
-.env
-snmptrapd.conf
-その他外部設定
-```
-
-Database Backup例:
-
-```bash
-mkdir -p zabbix/backups
-```
-
-```bash
-docker exec zabbix-postgres \
-  pg_dump \
-  -U zabbix \
-  -Fc zabbix \
-  > zabbix/backups/zabbix-$(date +%Y%m%d-%H%M%S).dump
-```
-
-PostgreSQL Container名は環境によって異なるため、必要に応じて確認します。
-
-```bash
-docker compose ps
-```
-
----
-
 # Troubleshooting
 
 ## BGPがEstablishedしない
@@ -1077,48 +1035,6 @@ Trap Source IPがR2/R4のManagement IPになっていることも確認します
 R2: 172.20.20.12
 R4: 172.20.20.22
 ```
-
----
-
-# Current Status
-
-```text
-[OK] Containerlab 5 Node Topology
-[OK] R1-R2 iBGP
-[OK] R2-R4 eBGP
-[OK] R4-R3 iBGP
-[OK] R2-R5 eBGP
-
-[OK] GoBGP RIB
-[OK] Zebra
-[OK] Linux FIB
-
-[OK] End-to-End Service Prefix Ping
-
-[OK] R2-R4 BFD
-
-[OK] FRR SNMP
-[OK] AgentX
-[OK] SNMP WALK
-
-[OK] BGP SNMP Trap
-[OK] Zabbix Trap Receiver
-[OK] Zabbix BGP Problem / Recovery
-
-[OK] Network Generic Device by SNMP
-[OK] Interface Discovery
-[OK] Interface Status Monitoring
-
-[OK] Interface Down / Up Test
-[OK] Containerlab netem Packet Loss
-
-[OK] Chaos Toolkit
-
-[WIP] Chaos Scenario Expansion
-[WIP] Monitoring Expansion
-[WIP] Failure Correlation
-```
-
 ---
 
 # Next Steps
