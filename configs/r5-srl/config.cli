@@ -1,0 +1,28 @@
+set / interface ethernet-1/1 admin-state enable
+set / interface ethernet-1/1 subinterface 0 admin-state enable
+set / interface ethernet-1/1 subinterface 0 ipv4 admin-state enable
+set / interface ethernet-1/1 subinterface 0 ipv4 address 10.0.4.1/31
+
+set / interface system0 admin-state enable
+set / interface system0 subinterface 0 admin-state enable
+set / interface system0 subinterface 0 ipv4 admin-state enable
+set / interface system0 subinterface 0 ipv4 address 10.255.0.5/32
+
+set / network-instance default interface ethernet-1/1.0
+set / network-instance default interface system0.0
+
+set / routing-policy policy ACCEPT-ALL default-action policy-result accept
+
+set / network-instance default protocols bgp admin-state enable
+set / network-instance default protocols bgp autonomous-system 65003
+set / network-instance default protocols bgp router-id 10.255.0.5
+
+set / network-instance default protocols bgp afi-safi ipv4-unicast admin-state enable
+
+set / network-instance default protocols bgp group TO-FRR peer-as 65001
+set / network-instance default protocols bgp group TO-FRR afi-safi ipv4-unicast admin-state enable
+set / network-instance default protocols bgp group TO-FRR import-policy [ ACCEPT-ALL ]
+set / network-instance default protocols bgp group TO-FRR export-policy [ ACCEPT-ALL ]
+
+set / network-instance default protocols bgp neighbor 10.0.4.0 admin-state enable
+set / network-instance default protocols bgp neighbor 10.0.4.0 peer-group TO-FRR

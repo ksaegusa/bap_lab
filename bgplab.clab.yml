@@ -27,6 +27,7 @@ topology:
         - ./configs/r2-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - snmpd
+
     r3-gobgp:
       kind: linux
       image: gobgp-lab:v4.7.0
@@ -48,7 +49,16 @@ topology:
         - ./configs/r4-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - snmpd
+
+    r5-srl:
+      kind: nokia_srlinux
+      type: ixr-d3
+      image: ghcr.io/nokia/srlinux:26.7.1-554
+      mgmt-ipv4: 172.20.20.31
+      startup-config: ./configs/r5-srl/config.cli
+
   links:
     - endpoints: ["r1-gobgp:eth1", "r2-frr:eth1"]
     - endpoints: ["r2-frr:eth2", "r4-frr:eth1"]
     - endpoints: ["r4-frr:eth2", "r3-gobgp:eth1"]
+    - endpoints: ["r2-frr:eth3", "r5-srl:e1-1"]

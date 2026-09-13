@@ -8,15 +8,6 @@ ARG SYSREPO_VERSION=v2.2.150
 ARG LIBNETCONF2_VERSION=v3.0.8
 ARG NETOPEER2_VERSION=v2.2.13
 
-#
-# Build / runtime dependencies
-#
-# FRR:
-#   SNMP / Sysrepo / RPKI / scripting / clippy build dependencies
-#
-# NETCONF:
-#   libyang / sysrepo / libnetconf2 / netopeer2 dependencies
-#
 RUN apk add --no-cache \
     bash \
     ca-certificates \
@@ -74,6 +65,7 @@ WORKDIR /src
 #
 # libyang 2.1.148
 #
+
 RUN git clone --depth 1 \
       --branch ${LIBYANG_VERSION} \
       https://github.com/CESNET/libyang.git libyang && \
@@ -90,6 +82,10 @@ RUN git clone --depth 1 \
 #
 # Sysrepo 2.2.150
 #
+# FRR daemons run as user/group frr.
+# Keep Sysrepo shared/repository files accessible to that group.
+#
+
 RUN git clone --depth 1 \
       --branch ${SYSREPO_VERSION} \
       https://github.com/sysrepo/sysrepo.git sysrepo && \
@@ -99,6 +95,8 @@ RUN git clone --depth 1 \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=/usr \
       -DCMAKE_INSTALL_LIBDIR=lib \
+      -DSYSREPO_GROUP=frr \
+      -DSYSREPO_UMASK=00007 \
       -DENABLE_TESTS=OFF \
       -DENABLE_EXAMPLES=OFF && \
     cmake --build sysrepo/build -j$(nproc) && \
@@ -107,6 +105,7 @@ RUN git clone --depth 1 \
 #
 # libnetconf2 3.0.8
 #
+
 RUN git clone --depth 1 \
       --branch ${LIBNETCONF2_VERSION} \
       https://github.com/CESNET/libnetconf2.git libnetconf2 && \
@@ -120,9 +119,6 @@ RUN git clone --depth 1 \
     cmake --build libnetconf2/build -j$(nproc) && \
     cmake --install libnetconf2/build
 
-#
-# Netopeer2 install scripts require these commands.
-#
 RUN command -v openssl && \
     openssl version && \
     command -v sysrepoctl && \
@@ -131,11 +127,10 @@ RUN command -v openssl && \
 #
 # Netopeer2 2.2.13
 #
-# Installation also:
-#   - installs required YANG modules into Sysrepo
-#   - generates NETCONF host key
-#   - installs initial NETCONF server configuration
+# SYSREPO_SETUP installs Netopeer2-required YANG modules and
+# initial NETCONF server configuration.
 #
+
 RUN git clone --depth 1 \
       --branch ${NETOPEER2_VERSION} \
       https://github.com/CESNET/netopeer2.git netopeer2 && \
@@ -154,9 +149,7 @@ RUN git clone --depth 1 \
 #
 # FRR 10.7.1
 #
-# The FRR binaries inherited from containerlab-10.7.1 are replaced
-# by an FRR build with SNMP + Sysrepo enabled.
-#
+
 RUN git clone --depth 1 \
       --branch ${FRR_VERSION} \
       https://github.com/FRRouting/frr.git frr && \
@@ -183,9 +176,55 @@ RUN git clone --depth 1 \
     make install
 
 #
-# Verify FRR modules and management components.
+# Install FRR YANG modules into Sysrepo.
 #
-RUN /usr/lib/frr/bgpd --version && \
+# This is the missing initialization step.
+#
+# Install all top-level FRR modules from the FRR source tree.
+# sysrepoctl resolves imported modules using -s.
+#
+
+RUN set -eux; \
+    cd /src/frr/yang; \
+    for module in \
+        ietf/ietf-interfaces.yang \
+        frr-vrf.yang \
+        frr-interface.yang \
+        frr-route-types.yang \
+        frr-filter.yang \
+        frr-route-map.yang \
+        frr-routing.yang \
+        frr-nexthop.yang \
+        frr-if-rmap.yang \
+        frr-affinity-map.yang \
+        frr-staticd.yang \
+        frr-zebra.yang \
+        frr-bgp.yang \
+        frr-bfdd.yang \
+        frr-ospfd.yang \
+        frr-isisd.yang \
+        frr-ripd.yang \
+        frr-ripngd.yang \
+        frr-vrrpd.yang \
+        frr-pathd.yang \
+        frr-pim.yang; \
+    do \
+        if [ -f "$module" ]; then \
+            sysrepoctl \
+              -i "$module" \
+              -s /src/frr/yang \
+              -o frr \
+              -g frr; \
+        fi; \
+    done
+
+#
+# Verify Sysrepo initialization.
+#
+
+RUN sysrepoctl -l && \
+    sysrepoctl -l | grep '^frr-' && \
+    /usr/lib/frr/bgpd --version && \
     test -f /usr/lib/frr/modules/bgpd_snmp.so && \
     test -f /usr/lib/frr/modules/zebra_snmp.so && \
     test -f /usr/lib/frr/modules/sysrepo.so && \
@@ -195,26 +234,12 @@ RUN /usr/lib/frr/bgpd --version && \
     command -v netopeer2-server && \
     command -v sshd
 
-#
-# snmpd.conf is intentionally NOT embedded.
-#
-# Containerlab will bind:
-#
-#   ./configs/r2-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
-#
-# because community strings, Trap destinations, etc. are lab-specific.
-#
-
 EXPOSE 22/tcp
 EXPOSE 179/tcp
 EXPOSE 161/udp
 EXPOSE 830/tcp
 
 #
-# ENTRYPOINT and CMD are inherited from:
-#
-#   quay.io/frrouting/frr:containerlab-10.7.1
-#
-# Therefore the containerlab FRR startup behavior, including sshd,
-# remains intact.
+# ENTRYPOINT/CMD inherited from:
+# quay.io/frrouting/frr:containerlab-10.7.1
 #
