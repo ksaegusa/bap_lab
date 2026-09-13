@@ -24,6 +24,7 @@ topology:
       binds:
         - ./configs/r2-frr/daemons:/etc/frr/daemons:ro
         - ./configs/r2-frr/frr.conf:/etc/frr/frr.conf:ro
+        - ./configs/r2-frr/vtysh.conf:/etc/frr/vtysh.conf:ro
         - ./configs/r2-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - snmpd
@@ -46,6 +47,7 @@ topology:
       binds:
         - ./configs/r4-frr/daemons:/etc/frr/daemons:ro
         - ./configs/r4-frr/frr.conf:/etc/frr/frr.conf:ro
+        - ./configs/r4-frr/vtysh.conf:/etc/frr/vtysh.conf:ro
         - ./configs/r4-frr/snmpd.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - snmpd

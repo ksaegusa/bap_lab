@@ -1,0 +1,62 @@
+version: "1.0.0"
+
+title: R2-R4 repeated link loss for 3 minutes
+
+description: >
+  Repeatedly inject 100 percent packet loss on R2 eth2
+  for 20 seconds, restore the link, wait 40 seconds,
+  and repeat this cycle three times.
+
+tags:
+  - containerlab
+  - network
+  - bgp
+  - bfd
+  - repeated-failure
+
+method:
+  - type: action
+    name: run-three-minute-link-flap-scenario
+    provider:
+      type: process
+      path: sh
+      arguments:
+        - -c
+        - |
+          set -eu
+
+          for i in 1 2 3; do
+            echo "=== Chaos cycle ${i}/3: inject 100% loss ==="
+
+            containerlab tools netem set \
+              -n clab-bgp-chaos-r2-frr \
+              -i eth2 \
+              --loss 100
+
+            sleep 20
+
+            echo "=== Chaos cycle ${i}/3: restore link ==="
+
+            containerlab tools netem reset \
+              -n clab-bgp-chaos-r2-frr \
+              -i eth2
+
+            if [ "${i}" -lt 3 ]; then
+              sleep 40
+            fi
+          done
+
+rollbacks:
+  - type: action
+    name: ensure-r2-r4-link-is-restored
+    provider:
+      type: process
+      path: containerlab
+      arguments:
+        - tools
+        - netem
+        - reset
+        - -n
+        - clab-bgp-chaos-r2-frr
+        - -i
+        - eth2
