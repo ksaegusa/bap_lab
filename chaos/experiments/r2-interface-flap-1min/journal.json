@@ -1,0 +1,117 @@
+{
+  "chaoslib-version": "1.45.0",
+  "platform": "Linux-6.17.0-1021-raspi-aarch64-with-glibc2.42",
+  "node": "pi02",
+  "experiment": {
+    "version": "1.0.0",
+    "title": "R2 eth2 interface flap for 1 minute",
+    "description": "Repeatedly shut down and restore R2 eth2. The interface stays down for 10 seconds and up for 10 seconds. This cycle is repeated three times.\n",
+    "tags": [
+      "containerlab",
+      "network",
+      "interface",
+      "flap"
+    ],
+    "method": [
+      {
+        "type": "action",
+        "name": "flap-r2-eth2-for-one-minute",
+        "provider": {
+          "type": "process",
+          "path": "sh",
+          "arguments": [
+            "-c",
+            "set -eu\n\nfor i in 1 2 3; do\n  echo \"=== Cycle ${i}/3: eth2 DOWN ===\"\n\n  docker exec clab-bgp-chaos-r2-frr \\\n    ip link set dev eth2 down\n\n  sleep 10\n\n  echo \"=== Cycle ${i}/3: eth2 UP ===\"\n\n  docker exec clab-bgp-chaos-r2-frr \\\n    ip link set dev eth2 up\n\n  sleep 10\ndone\n"
+          ]
+        }
+      }
+    ],
+    "rollbacks": [
+      {
+        "type": "action",
+        "name": "ensure-r2-eth2-is-up",
+        "provider": {
+          "type": "process",
+          "path": "docker",
+          "arguments": [
+            "exec",
+            "clab-bgp-chaos-r2-frr",
+            "ip",
+            "link",
+            "set",
+            "dev",
+            "eth2",
+            "up"
+          ]
+        }
+      }
+    ],
+    "dry": null
+  },
+  "start": "2026-09-13T04:57:07.557346+00:00",
+  "status": "completed",
+  "deviated": false,
+  "steady_states": {
+    "before": null,
+    "after": null,
+    "during": []
+  },
+  "run": [
+    {
+      "activity": {
+        "type": "action",
+        "name": "flap-r2-eth2-for-one-minute",
+        "provider": {
+          "type": "process",
+          "path": "sh",
+          "arguments": [
+            "-c",
+            "set -eu\n\nfor i in 1 2 3; do\n  echo \"=== Cycle ${i}/3: eth2 DOWN ===\"\n\n  docker exec clab-bgp-chaos-r2-frr \\\n    ip link set dev eth2 down\n\n  sleep 10\n\n  echo \"=== Cycle ${i}/3: eth2 UP ===\"\n\n  docker exec clab-bgp-chaos-r2-frr \\\n    ip link set dev eth2 up\n\n  sleep 10\ndone\n"
+          ]
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "=== Cycle 1/3: eth2 DOWN ===\n=== Cycle 1/3: eth2 UP ===\n=== Cycle 2/3: eth2 DOWN ===\n=== Cycle 2/3: eth2 UP ===\n=== Cycle 3/3: eth2 DOWN ===\n=== Cycle 3/3: eth2 UP ===\n",
+        "stderr": ""
+      },
+      "start": "2026-09-13T04:57:07.557945+00:00",
+      "status": "succeeded",
+      "end": "2026-09-13T04:58:07.866298+00:00",
+      "duration": 60.308353
+    }
+  ],
+  "rollbacks": [
+    {
+      "activity": {
+        "type": "action",
+        "name": "ensure-r2-eth2-is-up",
+        "provider": {
+          "type": "process",
+          "path": "docker",
+          "arguments": [
+            "exec",
+            "clab-bgp-chaos-r2-frr",
+            "ip",
+            "link",
+            "set",
+            "dev",
+            "eth2",
+            "up"
+          ]
+        }
+      },
+      "output": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "start": "2026-09-13T04:58:07.866857+00:00",
+      "status": "succeeded",
+      "end": "2026-09-13T04:58:07.912434+00:00",
+      "duration": 0.045577
+    }
+  ],
+  "end": "2026-09-13T04:58:07.912595+00:00",
+  "duration": 60.35808753967285
+}

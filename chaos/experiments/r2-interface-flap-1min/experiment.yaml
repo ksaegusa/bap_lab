@@ -1,0 +1,57 @@
+version: "1.0.0"
+
+title: R2 eth2 interface flap for 1 minute
+
+description: >
+  Repeatedly shut down and restore R2 eth2.
+  The interface stays down for 10 seconds and up for 10 seconds.
+  This cycle is repeated three times.
+
+tags:
+  - containerlab
+  - network
+  - interface
+  - flap
+
+method:
+  - type: action
+    name: flap-r2-eth2-for-one-minute
+    provider:
+      type: process
+      path: sh
+      arguments:
+        - -c
+        - |
+          set -eu
+
+          for i in 1 2 3; do
+            echo "=== Cycle ${i}/3: eth2 DOWN ==="
+
+            docker exec clab-bgp-chaos-r2-frr \
+              ip link set dev eth2 down
+
+            sleep 10
+
+            echo "=== Cycle ${i}/3: eth2 UP ==="
+
+            docker exec clab-bgp-chaos-r2-frr \
+              ip link set dev eth2 up
+
+            sleep 10
+          done
+
+rollbacks:
+  - type: action
+    name: ensure-r2-eth2-is-up
+    provider:
+      type: process
+      path: docker
+      arguments:
+        - exec
+        - clab-bgp-chaos-r2-frr
+        - ip
+        - link
+        - set
+        - dev
+        - eth2
+        - up
