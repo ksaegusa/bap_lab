@@ -2,6 +2,15 @@
 
 Containerlab上にGoBGP / FRRouting / Nokia SR Linuxを使ったBGP検証環境を構築し、BGP・BFD・SNMP・Zabbix監視・Chaos Engineeringをまとめて検証するためのラボです。
 
+## 安全に利用・共有するために
+
+このラボは隔離した検証環境専用です。本番ネットワークやインターネットに直接接続しないでください。障害注入は対象コンテナの通信を停止・劣化させます。
+
+- Zabbix Web UIとServerのホスト側待受は、既定で `127.0.0.1` に限定しています。リモートから利用する場合は `.env` の `ZABBIX_BIND_IP` に信頼できる管理用IPを指定し、ファイアウォールでも接続元を制限してください。Web UIの初期認証情報も変更してください。
+- SNMPは検証用のSNMPv2c community `public` を使用し、送信元制限を設定していません。SNMP Trap receiverはhost networkを使用するため、上記の待受IP設定の対象外です。UDP/161・1162を含め、ラボ外からのアクセスを遮断してください。
+- `clab-*` 内には生成された秘密鍵や機器設定が含まれます。作業フォルダ全体をZIP化せず、共有用アーカイブは `git archive --format=zip --output=../bgp-lab.zip HEAD` で作成してください。共有前にコミット内容も確認してください。
+- `.env`、秘密鍵、実行ログなどの除外対象を `git add -f` で追加しないでください。
+
 主な用途は以下です。
 
 - BGPのiBGP / eBGP動作確認
@@ -152,11 +161,11 @@ ARM64環境でも利用可能です。
 
 # Repository Layout
 
-想定するディレクトリ構成:
+主なディレクトリ構成:
 
 ```text
 bgp_lab/
-├── bgp-chaos.clab.yml
+├── bgplab.clab.yml
 │
 ├── configs/
 │   ├── r1-gobgp/
@@ -180,16 +189,17 @@ bgp_lab/
 │   └── r5-srl/
 │       └── config.cli
 │
-├── images/
-│   ├── gobgp/
-│   │   └── Dockerfile
+├── docker/
+│   ├── gobgp_container/
+│   │   ├── dockerfile
+│   │   └── start.sh
 │   │
-│   └── frr/
-│       └── Dockerfile
+│   └── frr_custom/
+│       └── dockerfile
 │
 ├── zabbix/
-│   ├── compose.yaml
-│   ├── .env
+│   ├── compose.yml
+│   ├── .env.example
 │   └── ...
 │
 ├── chaos/
@@ -231,14 +241,13 @@ docker version
 gobgp-lab:v4.7.0
 ```
 
-ビルド例:
+リポジトリのルートで実行:
 
 ```bash
-cd images/gobgp
-
 docker build \
+  -f docker/gobgp_container/dockerfile \
   -t gobgp-lab:v4.7.0 \
-  .
+  docker/gobgp_container
 ```
 
 ---
@@ -257,21 +266,17 @@ frr-lab:10.7.0-snmp-netconf
 - SNMP support
 - AgentX
 - Net-SNMP
-- Sysrepo
-- libnetconf2
-- Netopeer2
 
-ビルド例:
+リポジトリのルートで実行:
 
 ```bash
-cd images/frr
-
 docker build \
+  -f docker/frr_custom/dockerfile \
   -t frr-lab:10.7.0-snmp-netconf \
-  .
+  docker/frr_custom
 ```
 
-現状、NETCONF関連コンポーネントもImageに含まれていますが、現在のラボでは主にBGP / BFD / SNMPを使用しています。
+DockerfileはFRR 10.7.1をビルドし、BGP / BFD / SNMPを使用します。互換性のため既存のImageタグを使用していますが、タグ名にあるNETCONF関連コンポーネントの追加処理はありません。
 
 ---
 
@@ -280,13 +285,13 @@ docker build \
 Topologyを起動:
 
 ```bash
-containerlab deploy
+containerlab deploy -t bgplab.clab.yml
 ```
 
 状態確認:
 
 ```bash
-containerlab inspect 
+containerlab inspect -t bgplab.clab.yml
 ```
 
 Docker側:
@@ -440,7 +445,13 @@ Zabbix 7.0 LTSをDocker Composeで起動します。
 cd zabbix
 ```
 
-.envを修正
+初回はテンプレートをコピーし、`.env` の `POSTGRES_PASSWORD` に固有のパスワードを設定します。空欄のままでは起動できません。`.env` はGit管理対象外です。
+
+```bash
+cp .env.example .env
+```
+
+既存のDBボリュームを使う場合は、そのDBに設定済みのパスワードを維持してください。環境変数の変更だけでは既存DBのパスワードは更新されません。
 
 起動:
 
@@ -466,7 +477,7 @@ Zabbix SNMP Trap Receiver
 Zabbix Web UIは現在以下を使用します。
 
 ```text
-http://<Docker-Host>:8080
+http://127.0.0.1:8888
 ```
 
 ---
@@ -769,7 +780,7 @@ pip install -r requirements.txt
 `requirements.txt`:
 
 ```text
-chaostoolkit
+chaostoolkit==1.20.0
 ```
 
 確認:
@@ -787,7 +798,7 @@ chaos/
 ├── .venv/
 ├── requirements.txt
 └── experiments/
-    ├── r2-r4-packet-loss/
+    ├── r2-r4-link-loss/
     │   └── experiment.yaml
     │
     ├── r2-interface-flap-1min/
@@ -857,21 +868,21 @@ Topology確認:
 
 ```bash
 containerlab inspect \
-  -t bgp-chaos.clab.yml
+  -t bgplab.clab.yml
 ```
 
 Topology削除:
 
 ```bash
 sudo containerlab destroy \
-  -t bgp-chaos.clab.yml
+  -t bgplab.clab.yml
 ```
 
 再作成:
 
 ```bash
 sudo containerlab deploy \
-  -t bgp-chaos.clab.yml
+  -t bgplab.clab.yml
 ```
 
 ---
@@ -1087,7 +1098,7 @@ Containerlab環境を削除:
 
 ```bash
 sudo containerlab destroy \
-  -t bgp-chaos.clab.yml
+  -t bgplab.clab.yml
 ```
 
 Zabbix停止:

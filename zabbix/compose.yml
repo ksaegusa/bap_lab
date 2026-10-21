@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       TZ: ${TZ}
 
     command:
@@ -73,14 +73,14 @@ services:
 
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
 
       ZBX_ENABLE_SNMP_TRAPS: "true"
 
       TZ: ${TZ}
 
     ports:
-      - "10051:10051/tcp"
+      - "${ZABBIX_BIND_IP:-127.0.0.1}:10051:10051/tcp"
 
     volumes:
       - snmptraps-data:/var/lib/zabbix/snmptraps
@@ -111,12 +111,12 @@ services:
 
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
 
       PHP_TZ: ${TZ}
 
     ports:
-      - "8888:8080/tcp"
+      - "${ZABBIX_BIND_IP:-127.0.0.1}:8888:8080/tcp"
 
     networks:
       - zabbix-net

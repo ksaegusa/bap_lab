@@ -1,2 +1,7 @@
-clab-bgp-chaos/*
-.venv
+clab-*/
+.venv/
+.env
+.env.*
+!.env.example
+*.key
+*.key.pem
